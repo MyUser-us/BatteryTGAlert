@@ -19,13 +19,11 @@ const App: React.FC = () => {
     };
   });
 
-  const [battery, setBattery] = useState<BatteryStatus>({ level: 1, charging: false });
+  const [battery, setBattery] = useState<BatteryStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [logs, setLogs] = useState<NotificationLog[]>([]);
   const [isMonitoring, setIsMonitoring] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
-  const [swReady, setSwReady] = useState<boolean | 'loading' | 'error' | 'not_supported' | 'dev_mode'>('loading');
-  const [wakeLockActive, setWakeLockActive] = useState(false);
-  const [wakeLockError, setWakeLockError] = useState(false);
+  const [showStudioGuide, setShowStudioGuide] = useState(false);
   
   const sentThresholdsRef = useRef<Set<number>>(new Set());
   const wakeLockRef = useRef<any>(null);
@@ -34,53 +32,25 @@ const App: React.FC = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   }, [settings]);
 
-  useEffect(() => {
-    const checkSW = setInterval(() => {
-      const status = (window as any).swStatus;
-      if (status === 'active') {
-        setSwReady(true);
-        clearInterval(checkSW);
-      } else if (status === 'dev_mode') {
-        setSwReady('dev_mode');
-        clearInterval(checkSW);
-      } else if (status === 'error') {
-        setSwReady('error');
-        clearInterval(checkSW);
-      } else if (status === 'not_supported') {
-        setSwReady('not_supported');
-        clearInterval(checkSW);
-      }
-    }, 1000);
-    return () => clearInterval(checkSW);
-  }, []);
-
-  const requestWakeLock = async () => {
+  const toggleWakeLock = async (enable: boolean) => {
     if ('wakeLock' in navigator) {
       try {
-        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-        setWakeLockActive(true);
-        setWakeLockError(false);
-      } catch (err: any) {
-        setWakeLockActive(false);
-        if (err.name === 'NotAllowedError' || err.message.includes('permission')) {
-          setWakeLockError(true);
+        if (enable) {
+          wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        } else if (wakeLockRef.current) {
+          await wakeLockRef.current.release();
+          wakeLockRef.current = null;
         }
+      } catch (err) {
+        console.error('WakeLock failed:', err);
       }
     }
   };
 
-  const releaseWakeLock = () => {
-    if (wakeLockRef.current) {
-      try { wakeLockRef.current.release(); } catch (e) {}
-      wakeLockRef.current = null;
-      setWakeLockActive(false);
-    }
-  };
-
   useEffect(() => {
-    if (isMonitoring) requestWakeLock();
-    else releaseWakeLock();
-    return () => releaseWakeLock();
+    if (isMonitoring) toggleWakeLock(true);
+    else toggleWakeLock(false);
+    return () => { toggleWakeLock(false); };
   }, [isMonitoring]);
 
   const checkAndNotify = useCallback(async (level: number, charging: boolean) => {
@@ -98,16 +68,16 @@ const App: React.FC = () => {
 
     for (const t of thresholds) {
       if (percentage <= t && !sentThresholdsRef.current.has(t)) {
-        const message = `⚠️ *Разряд батареи*\n\n📱 Устройство: ${settings.phoneName}\n🔋 Уровень: ${percentage}%\n📉 Порог: ${t}%\n\nПожалуйста, подключите зарядное устройство!`;
+        const message = `⚠️ *Разряд*\n📱 ${settings.phoneName}\n🔋 Уровень: ${percentage}%`;
         const success = await sendTelegramMessage(settings.telegramToken, settings.telegramChatId, message);
         
         setLogs(prev => [{
           id: Date.now().toString(),
           timestamp: new Date(),
           level: percentage,
-          message: `Порог ${t}% достигнут.`,
+          message: `Порог ${t}% достигнут`,
           status: success ? 'sent' : 'failed'
-        }, ...prev].slice(0, 50));
+        }, ...prev].slice(0, 15));
         
         sentThresholdsRef.current.add(t);
         break; 
@@ -125,124 +95,160 @@ const App: React.FC = () => {
         update();
         m.addEventListener('levelchange', update);
         m.addEventListener('chargingchange', update);
+      }).catch(err => {
+        setError("Не удалось получить доступ к API батареи");
       });
+    } else {
+      setError("Ваш браузер/WebView не поддерживает Battery API");
     }
   }, [checkAndNotify]);
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-center">
+        <div className="bg-red-500/10 border border-red-500/20 p-8 rounded-3xl max-w-sm">
+          <h2 className="text-red-500 font-black mb-4 uppercase italic">Критическая ошибка</h2>
+          <p className="text-slate-400 text-sm mb-6">{error}</p>
+          <button onClick={() => location.reload()} className="w-full bg-slate-800 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest">Повторить</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!battery) {
+    return <div className="min-h-screen bg-slate-950" />; // HTML loading state will show
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 flex flex-col items-center">
-      <header className="w-full max-w-4xl flex justify-between items-center mb-6 bg-slate-900/50 p-6 rounded-3xl border border-slate-800">
+      <header className="w-full max-w-lg flex justify-between items-center mb-6 bg-slate-900/80 p-5 rounded-3xl border border-slate-800 backdrop-blur-md">
         <div>
-          <h1 className="text-xl font-black tracking-tighter text-white uppercase italic">
-            Batt<span className="text-blue-500">Guard</span>
+          <h1 className="text-xl font-black tracking-tighter uppercase italic text-blue-500">
+            Batt<span className="text-white">Guard</span>
           </h1>
-          <div className="flex items-center gap-3 mt-1">
-             <div className="flex items-center gap-1.5">
-               <div className={`w-1.5 h-1.5 rounded-full ${isMonitoring ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`}></div>
-               <p className="text-slate-500 text-[9px] uppercase font-black tracking-widest">
-                 {isMonitoring ? 'Active' : 'Standby'}
-               </p>
-             </div>
-             <div className="h-2 w-px bg-slate-800"></div>
-             <div className="flex items-center gap-1.5">
-               <div className={`w-1.5 h-1.5 rounded-full ${swReady === true ? 'bg-blue-500' : 'bg-orange-500'}`}></div>
-               <p className="text-slate-500 text-[9px] uppercase font-black tracking-widest">
-                 APK: {swReady === true ? 'Core OK' : 'Dev Mode'}
-               </p>
-             </div>
-          </div>
+          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
+            {isMonitoring ? '● Monitoring On' : '○ Standby'}
+          </p>
         </div>
         <button 
           onClick={() => setIsMonitoring(!isMonitoring)}
-          className={`px-6 py-2.5 rounded-2xl font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 ${
-            isMonitoring ? 'bg-red-500/10 text-red-500 border border-red-500/50' : 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+          className={`px-8 py-3 rounded-2xl font-black text-[11px] uppercase transition-all transform active:scale-90 ${
+            isMonitoring ? 'bg-red-500/10 text-red-500 border border-red-500/30' : 'bg-blue-600 text-white shadow-xl shadow-blue-900/40'
           }`}
         >
           {isMonitoring ? 'Stop' : 'Start'}
         </button>
       </header>
 
-      <main className="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section className="space-y-6">
-          <BatteryIndicator level={battery.level} isCharging={battery.charging} />
-          
-          <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 shadow-xl">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4">Журнал событий</h3>
-            <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar text-[11px]">
-              {logs.length === 0 ? <p className="text-slate-700 text-center py-4">Событий пока нет</p> : logs.map(log => (
-                <div key={log.id} className="flex justify-between items-center bg-slate-800/20 p-3 rounded-xl border border-slate-800">
-                  <span className="text-slate-400">{log.timestamp.toLocaleTimeString()}</span>
-                  <span className="font-bold">{log.message}</span>
-                  <span className={log.status === 'sent' ? 'text-emerald-500' : 'text-red-500'}>{log.status}</span>
+      <main className="w-full max-w-lg space-y-5">
+        <BatteryIndicator level={battery.level} isCharging={battery.charging} />
+        
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Конфигурация</h3>
+            <button onClick={() => setShowStudioGuide(true)} className="text-[10px] bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full font-bold border border-blue-500/20">
+              Android Studio APK Guide
+            </button>
+          </div>
+
+          <div className="space-y-3">
+             <input type="text" value={settings.phoneName} placeholder="Device Name" onChange={e => setSettings({...settings, phoneName: e.target.value})}
+               className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-sm focus:border-blue-500 outline-none transition-all" />
+             
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <span className="text-[9px] text-slate-600 uppercase font-black ml-2">Начать с %</span>
+                  <input type="number" value={settings.initialThreshold} onChange={e => setSettings({...settings, initialThreshold: Number(e.target.value)})}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-sm focus:border-blue-500 outline-none" />
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
+                <div className="space-y-1">
+                  <span className="text-[9px] text-slate-600 uppercase font-black ml-2">Интервал %</span>
+                  <input type="number" value={settings.interval} onChange={e => setSettings({...settings, interval: Number(e.target.value)})}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-sm focus:border-blue-500 outline-none" />
+                </div>
+             </div>
 
-        <section className="space-y-6">
-          <div className="bg-blue-600/10 border border-blue-500/30 rounded-3xl p-6">
-            <h3 className="text-sm font-black mb-2 text-blue-400">ПОЧЕМУ ОТКРЫВАЕТСЯ GITHUB?</h3>
-            <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
-              Это происходит, если в PWABuilder вы указали ссылку на репозиторий кода, а не на сам сайт. 
-            </p>
-            <button onClick={() => setShowHelp(true)} className="w-full bg-blue-600 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest">
-              Как собрать APK правильно
-            </button>
+             <div className="pt-2 border-t border-slate-800/50 space-y-3">
+                <input type="password" placeholder="Telegram Bot Token" value={settings.telegramToken} onChange={e => setSettings({...settings, telegramToken: e.target.value})}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-xs focus:border-blue-500 outline-none" />
+                <input type="text" placeholder="Telegram Chat ID" value={settings.telegramChatId} onChange={e => setSettings({...settings, telegramChatId: e.target.value})}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-xs focus:border-blue-500 outline-none" />
+             </div>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Настройки</h3>
-            <input type="text" value={settings.phoneName} onChange={e => setSettings({...settings, phoneName: e.target.value})}
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-sm" placeholder="Имя устройства" />
-            
-            <div className="grid grid-cols-2 gap-4">
-              <input type="number" value={settings.initialThreshold} onChange={e => setSettings({...settings, initialThreshold: Number(e.target.value)})}
-                className="bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-sm" placeholder="Порог %" />
-              <input type="number" value={settings.interval} onChange={e => setSettings({...settings, interval: Number(e.target.value)})}
-                className="bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-sm" placeholder="Шаг %" />
-            </div>
+          <button onClick={async () => {
+              const ok = await sendTelegramMessage(settings.telegramToken, settings.telegramChatId, "✅ Тест пройден!");
+              alert(ok ? "Работает!" : "Ошибка! Проверьте Token/ID.");
+            }} className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-colors">
+            Проверить Telegram
+          </button>
+        </div>
 
-            <input type="password" placeholder="Telegram Bot Token" value={settings.telegramToken} onChange={e => setSettings({...settings, telegramToken: e.target.value})}
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-xs" />
-            <input type="text" placeholder="Telegram Chat ID" value={settings.telegramChatId} onChange={e => setSettings({...settings, telegramChatId: e.target.value})}
-              className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-3 text-xs" />
-            
-            <button onClick={async () => {
-                const ok = await sendTelegramMessage(settings.telegramToken, settings.telegramChatId, "✅ Тест связи");
-                alert(ok ? "Успешно!" : "Ошибка настроек");
-              }} className="w-full bg-slate-800 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest">
-              Тест связи
-            </button>
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
+          <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4">Логи работы</h3>
+          <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-2">
+            {logs.length === 0 ? (
+              <p className="text-slate-700 text-center py-8 text-[10px] uppercase font-black">Событий нет</p>
+            ) : (
+              logs.map(log => (
+                <div key={log.id} className="flex justify-between items-center bg-slate-950/50 p-3 rounded-xl border border-slate-800/50">
+                  <span className="text-[10px] text-slate-600 font-mono">{log.timestamp.toLocaleTimeString()}</span>
+                  <span className="text-xs font-bold text-slate-300">{log.message}</span>
+                  <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded ${log.status === 'sent' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                    {log.status}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
-        </section>
+        </div>
       </main>
 
-      {showHelp && (
-        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-50 flex items-center justify-center p-6">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl overflow-y-auto max-h-[85vh]">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-black italic">APK GUIDE</h2>
-              <button onClick={() => setShowHelp(false)} className="text-slate-500">✕</button>
+      {showStudioGuide && (
+        <div className="fixed inset-0 bg-slate-950/98 z-50 overflow-y-auto p-6">
+          <div className="max-w-2xl mx-auto space-y-8 pb-20">
+            <div className="flex justify-between items-center sticky top-0 bg-slate-950 py-4 z-10 border-b border-slate-800">
+              <h2 className="text-xl font-black italic">APK <span className="text-blue-500">DEPLOY</span></h2>
+              <button onClick={() => setShowStudioGuide(false)} className="text-slate-500 p-2 text-2xl">✕</button>
             </div>
-            <div className="space-y-6 text-xs text-slate-300 leading-relaxed">
-              <div className="bg-slate-950 p-5 rounded-2xl border border-blue-500/20">
-                <p className="font-black text-blue-500 uppercase mb-2">Шаг 1: Публикация</p>
-                <p>Выложите файлы на GitHub Pages (Settings -> Pages). Дождитесь, пока сайт станет доступен по адресу: <strong>https://username.github.io/repo/</strong></p>
-              </div>
-              <div className="bg-slate-950 p-5 rounded-2xl border border-emerald-500/20">
-                <p className="font-black text-emerald-500 uppercase mb-2">Шаг 2: Сборка</p>
-                <p>Зайдите на <strong>pwabuilder.com</strong> и вставьте ссылку именно на <strong>ВАШ САЙТ</strong>, а не на страницу кода GitHub.</p>
-              </div>
-              <div className="bg-slate-950 p-5 rounded-2xl border border-purple-500/20">
-                <p className="font-black text-purple-500 uppercase mb-2">Шаг 3: Настройка Android</p>
-                <p>После установки APK на телефоне: Настройки -> Приложения -> BattGuard -> Батарея -> <strong>Без ограничений</strong>.</p>
-              </div>
+
+            <div className="space-y-6">
+              <section className="bg-blue-600/10 border border-blue-500/20 p-5 rounded-2xl">
+                <h4 className="text-blue-400 font-black text-xs uppercase mb-2 italic">Важный нюанс GitHub Pages</h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Если ссылка открывает белый экран, проверьте:
+                  <br/><br/>
+                  1. Сделали ли вы репозиторий <b>Public</b>? (Settings -> Change visibility).
+                  <br/>
+                  2. Пути в коде должны быть <b>относительными</b> (начинаться с <code className="text-white">./</code>). Я уже обновил код для вас.
+                </p>
+              </section>
+
+              <section className="bg-slate-900 rounded-2xl p-5 border border-slate-800">
+                <h4 className="text-emerald-500 font-black text-[10px] uppercase mb-3 italic">Android Studio Setup</h4>
+                <pre className="text-[9px] text-slate-300 bg-black p-4 rounded-xl overflow-x-auto">
+{`// MainActivity.java
+WebView web = findViewById(R.id.webview);
+web.getSettings().setJavaScriptEnabled(true);
+web.getSettings().setDomStorageEnabled(true);
+web.setWebViewClient(new WebViewClient());
+
+// Обязательно добавьте '/' в конце URL!
+web.loadUrl("https://username.github.io/repo-name/");`}
+                </pre>
+              </section>
             </div>
-            <button onClick={() => setShowHelp(false)} className="w-full mt-8 bg-white text-black font-black py-4 rounded-2xl uppercase text-[10px]">Понятно</button>
+
+            <button onClick={() => setShowStudioGuide(false)} className="w-full bg-white text-black font-black py-4 rounded-2xl uppercase text-[10px]">
+              Закрыть
+            </button>
           </div>
         </div>
       )}
+
+      <footer className="mt-auto py-8 opacity-20 text-[9px] font-black tracking-[0.5em] uppercase text-center">
+        BattGuard Pro • Fixed Assets
+      </footer>
     </div>
   );
 };

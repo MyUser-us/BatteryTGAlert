@@ -1,7 +1,7 @@
 {
   "name": "Battery Guardian Pro",
   "short_name": "BattGuard",
-  "description": "Professional battery monitoring with Telegram alerts and system auto-start instructions.",
+  "description": "Professional battery monitoring with Telegram alerts.",
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/3103/3103446.png",
@@ -13,6 +13,6 @@
   "start_url": ".",
   "display": "standalone",
   "background_color": "#0f172a",
-  "theme_color": "#3b82f6",
+  "theme_color": "#0f172a",
   "requestFramePermissions": []
 }

@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Battery Guardian Pro</title>
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="./manifest.json">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -18,20 +18,23 @@
       background-color: #0f172a;
       color: #f8fafc;
       user-select: none;
-      -webkit-tap-highlight-color: transparent;
       margin: 0;
       padding: 0;
+      overflow-x: hidden;
     }
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 4px;
+    #root:empty::before {
+      content: 'Загрузка системы...';
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: #334155;
+      animation: pulse 2s infinite;
     }
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: #334155;
-      border-radius: 10px;
-    }
+    @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
   </style>
   <script type="importmap">
 {
@@ -47,28 +50,31 @@
 </head>
 <body>
   <div id="root"></div>
+  
+  <!-- Основной скрипт приложения -->
+  <script src="./index.tsx" type="module"></script>
+
   <script>
+    // Обработка критических ошибок для отладки в WebView
+    window.onerror = function(msg, url, line) {
+      const root = document.getElementById('root');
+      if (root) {
+        root.innerHTML = '<div style="padding:40px; color:#ef4444; font-family:monospace; font-size:12px;">' +
+          '<h1 style="font-size:20px; font-weight:bold; margin-bottom:10px;">Ошибка запуска</h1>' +
+          '<div>' + msg + '</div>' +
+          '<div style="margin-top:10px; opacity:0.5;">Line: ' + line + '</div>' +
+          '<button onclick="location.reload()" style="margin-top:20px; background:#ef4444; color:white; border:none; padding:10px 20px; border-radius:10px;">Перезагрузить</button>' +
+          '</div>';
+      }
+      return false;
+    };
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        // Используем максимально простой относительный путь для регистрации
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => {
-            console.log('Service Worker успешно зарегистрирован:', reg.scope);
-            window.swStatus = 'active';
-          })
-          .catch(err => {
-            console.warn('Ожидаемая ошибка SW в Dev-режиме:', err.message);
-            // Если ошибка в несовпадении origin, помечаем как "dev_mode"
-            if (err.message.includes('origin')) {
-                window.swStatus = 'dev_mode';
-            } else {
-                window.swStatus = 'error';
-            }
-            window.swErrorMessage = err.message;
-          });
+        navigator.serviceWorker.register('./sw.js', { scope: './' })
+          .then(reg => { console.log('SW active'); })
+          .catch(err => { console.error('SW failed', err); });
       });
-    } else {
-      window.swStatus = 'not_supported';
     }
   </script>
 </body>
