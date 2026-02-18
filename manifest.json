@@ -1,0 +1,27 @@
+
+{
+  "name": "Battery Guardian Pro",
+  "short_name": "BattGuard",
+  "description": "Professional battery monitoring system with Telegram notifications.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3103/3103446.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["utilities", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Check Status",
+      "url": "/",
+      "icons": [{ "src": "https://cdn-icons-png.flaticon.com/512/3103/3103446.png", "sizes": "512x512" }]
+    }
+  ]
+}
