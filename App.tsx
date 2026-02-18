@@ -116,7 +116,7 @@ const App: React.FC = () => {
   }
 
   if (!battery) {
-    return <div className="min-h-screen bg-slate-950" />; // HTML loading state will show
+    return <div className="min-h-screen bg-slate-950" />;
   }
 
   return (
@@ -205,49 +205,64 @@ const App: React.FC = () => {
       </main>
 
       {showStudioGuide && (
-        <div className="fixed inset-0 bg-slate-950/98 z-50 overflow-y-auto p-6">
+        <div className="fixed inset-0 bg-slate-950/98 z-50 overflow-y-auto p-6 backdrop-blur-xl">
           <div className="max-w-2xl mx-auto space-y-8 pb-20">
-            <div className="flex justify-between items-center sticky top-0 bg-slate-950 py-4 z-10 border-b border-slate-800">
-              <h2 className="text-xl font-black italic">APK <span className="text-blue-500">DEPLOY</span></h2>
-              <button onClick={() => setShowStudioGuide(false)} className="text-slate-500 p-2 text-2xl">✕</button>
+            <div className="flex justify-between items-center sticky top-0 bg-slate-950/80 py-4 z-10 border-b border-slate-800 backdrop-blur-md">
+              <h2 className="text-xl font-black italic">ANDROID STUDIO <span className="text-blue-500">BUILD</span></h2>
+              <button onClick={() => setShowStudioGuide(false)} className="bg-slate-800 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold">✕</button>
             </div>
 
             <div className="space-y-6">
-              <section className="bg-blue-600/10 border border-blue-500/20 p-5 rounded-2xl">
-                <h4 className="text-blue-400 font-black text-xs uppercase mb-2 italic">Важный нюанс GitHub Pages</h4>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Если ссылка открывает белый экран, проверьте:
-                  <br/><br/>
-                  1. Сделали ли вы репозиторий <b>Public</b>? (Settings -> Change visibility).
-                  <br/>
-                  2. Пути в коде должны быть <b>относительными</b> (начинаться с <code className="text-white">./</code>). Я уже обновил код для вас.
-                </p>
+              <section className="bg-slate-900 rounded-3xl p-6 border border-slate-800">
+                <h4 className="text-blue-400 font-black text-xs uppercase mb-4 italic">Шаг 1: Подготовка Проекта</h4>
+                <ul className="text-xs text-slate-400 space-y-3 list-decimal list-inside">
+                  <li>Создайте в Android Studio новый проект: <b>Empty Views Activity</b>.</li>
+                  <li>В <code className="text-emerald-400">AndroidManifest.xml</code> добавьте:
+                    <pre className="bg-black p-3 mt-2 rounded-xl text-[10px] text-white">
+{`<uses-permission android:name="android.permission.INTERNET" />`}</pre>
+                  </li>
+                </ul>
               </section>
 
-              <section className="bg-slate-900 rounded-2xl p-5 border border-slate-800">
-                <h4 className="text-emerald-500 font-black text-[10px] uppercase mb-3 italic">Android Studio Setup</h4>
-                <pre className="text-[9px] text-slate-300 bg-black p-4 rounded-xl overflow-x-auto">
-{`// MainActivity.java
-WebView web = findViewById(R.id.webview);
+              <section className="bg-slate-900 rounded-3xl p-6 border border-slate-800">
+                <h4 className="text-blue-400 font-black text-xs uppercase mb-4 italic">Шаг 2: Верстка (activity_main.xml)</h4>
+                <pre className="bg-black p-4 rounded-xl text-[10px] text-white overflow-x-auto">
+{`<WebView
+    android:id="@+id/webview"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />`}</pre>
+              </section>
+
+              <section className="bg-slate-900 rounded-3xl p-6 border border-slate-800">
+                <h4 className="text-blue-400 font-black text-xs uppercase mb-4 italic">Шаг 3: Код (MainActivity.java)</h4>
+                <pre className="bg-black p-4 rounded-xl text-[10px] text-white overflow-x-auto">
+{`WebView web = findViewById(R.id.webview);
 web.getSettings().setJavaScriptEnabled(true);
 web.getSettings().setDomStorageEnabled(true);
 web.setWebViewClient(new WebViewClient());
-
-// Обязательно добавьте '/' в конце URL!
-web.loadUrl("https://username.github.io/repo-name/");`}
-                </pre>
+// Вставьте вашу ссылку на GitHub Pages:
+web.loadUrl("https://username.github.io/repo/");`}</pre>
               </section>
+
+              <div className="bg-yellow-500/10 border border-yellow-500/20 p-5 rounded-2xl">
+                <h4 className="text-yellow-500 font-black text-[10px] uppercase mb-2">Важно для фоновой работы:</h4>
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  Чтобы приложение не засыпало, в настройках Android (на самом телефоне) нужно:
+                  <br/>1. Отключить <b>Оптимизацию батареи</b> для вашего приложения.
+                  <br/>2. Разрешить <b>Автозапуск</b> и <b>Фоновую активность</b>.
+                </p>
+              </div>
             </div>
 
-            <button onClick={() => setShowStudioGuide(false)} className="w-full bg-white text-black font-black py-4 rounded-2xl uppercase text-[10px]">
-              Закрыть
+            <button onClick={() => setShowStudioGuide(false)} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl uppercase text-[11px] shadow-lg shadow-blue-900/40">
+              Понятно, закрыть
             </button>
           </div>
         </div>
       )}
 
       <footer className="mt-auto py-8 opacity-20 text-[9px] font-black tracking-[0.5em] uppercase text-center">
-        BattGuard Pro • Fixed Assets
+        BattGuard Pro • Build Ready
       </footer>
     </div>
   );

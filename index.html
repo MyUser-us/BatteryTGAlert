@@ -51,11 +51,10 @@
 <body>
   <div id="root"></div>
   
-  <!-- Основной скрипт приложения -->
   <script src="./index.tsx" type="module"></script>
 
   <script>
-    // Обработка критических ошибок для отладки в WebView
+    // Обработка критических ошибок
     window.onerror = function(msg, url, line) {
       const root = document.getElementById('root');
       if (root) {
@@ -69,11 +68,21 @@
       return false;
     };
 
+    // Исправленная регистрация Service Worker с проверкой Origin
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js', { scope: './' })
-          .then(reg => { console.log('SW active'); })
-          .catch(err => { console.error('SW failed', err); });
+        const swUrl = new URL('./sw.js', window.location.href);
+        // Регистрируем только если домен скрипта совпадает с текущим (защита от ошибки в AI Studio)
+        if (swUrl.origin === window.location.origin) {
+          navigator.serviceWorker.register(swUrl.pathname, { scope: './' })
+            .then(reg => { console.log('SW active'); })
+            .catch(err => { 
+              // Игнорируем ошибки безопасности в dev-окружении
+              if (!err.message.includes('origin')) {
+                console.error('SW failed', err); 
+              }
+            });
+        }
       });
     }
   </script>
